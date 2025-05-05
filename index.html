@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Join Game</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+    #status, #questionContainer { margin: 20px; }
+    #questionContainer { display: none; }
+  </style>
+</head>
+<body>
+
+  <form id="joinForm">
+    <h2>Join Game</h2>
+    <input id="nameInput" type="text" placeholder="Your Name" required>
+    <input id="roomInput" type="text" placeholder="Room Code" required>
+    <button type="submit">Join</button>
+  </form>
+
+  <div id="status" style="display:none;"></div>
+  <button id="startBtn" style="display:none;">Start Game</button>
+
+  <div id="questionContainer">
+    <div id="questionText"></div>
+    <form id="answerForm">
+      <input id="answerInput" type="text" placeholder="Your Answer" required>
+      <button type="submit">Submit Answer</button>
+    </form>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const joinForm = document.getElementById('joinForm');
+    const nameInput = document.getElementById('nameInput');
+    const roomInput = document.getElementById('roomInput');
+    const statusDiv = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    const questionContainer = document.getElementById('questionContainer');
+    const questionText = document.getElementById('questionText');
+    const answerForm = document.getElementById('answerForm');
+    const answerInput = document.getElementById('answerInput');
+
+    let playerName = '';
+    let roomCode = '';
+
+    joinForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      const room = roomInput.value.trim();
+      if (name && room) {
+        playerName = name;
+        roomCode = room.toUpperCase();
+        socket.emit('join_room', { name, room });
+      }
+    });
+
+    socket.on('join_error', (data) => {
+      alert(data.message);
+    });
+
+    socket.on('join_success', (data) => {
+      joinForm.style.display = 'none';
+      statusDiv.style.display = 'block';
+
+      if (data.playerCount === 1) {
+        statusDiv.innerText = "You're the host! Start the game when everyone's in.";
+        startBtn.style.display = 'inline-block';
+      } else {
+        statusDiv.innerText = "Waiting for host to start the game...";
+        startBtn.style.display = 'none';
+      }
+    });
+
+    startBtn.addEventListener('click', () => {
+      socket.emit('start_game', { room: roomCode });
+      startBtn.style.display = 'none';
+    });
+
+    socket.on('game_started', () => {
+      statusDiv.innerText = "Game started!";
+    });
+
+    socket.on('receive_prompt', (data) => {
+      statusDiv.style.display = 'none';
+      questionContainer.style.display = 'block';
+      questionText.innerText = data.question;
+    });
+
+    answerForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const answer = answerInput.value.trim();
+      if (answer) {
+        socket.emit('submit_response', {
+          room: roomCode,
+          name: playerName,
+          answer: answer
+        });
+        answerInput.value = '';
+        questionContainer.style.display = 'none';
+        statusDiv.style.display = 'block';
+        statusDiv.innerText = "Answer submitted. Waiting for next prompt...";
+      }
+    });
+  </script>
+
+</body>
+</html>
